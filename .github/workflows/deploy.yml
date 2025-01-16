@@ -1,0 +1,82 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build project
+      run: npm run build
+
+    - name: Zip build artifacts
+      run: |
+        zip -r build.zip . -x "node_modules/*" "uploads/*" "*.log" ".DS_Store" ".env"
+
+    - name: Check build.zip size
+      run: |
+        du -h build.zip
+        if [ $(du -b build.zip | cut -f1) -gt 524288000 ]; then
+          echo "Error: build.zip exceeds the maximum allowed size of 500 MB."
+          exit 1
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build
+        path: build.zip
+
+    - name: Configure AWS CLI
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws configure set aws_session_token ${{ secrets.AWS_SESSION_TOKEN }}
+        aws configure set region ${{ secrets.AWS_REGION }}
+
+    - name: Upload to S3
+      run: |
+        aws s3 cp build.zip s3://${{ secrets.S3_BUCKET_NAME }}/build.zip
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build
+
+    - name: Deploy to Elastic Beanstalk
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        EB_ENV_NAME: ${{ secrets.EB_ENV_NAME }}
+        EB_APP_NAME: ${{ secrets.EB_APP_NAME }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      run: |
+        aws elasticbeanstalk create-application-version --application-name ${{ secrets.EB_APP_NAME }} --version-label $GITHUB_SHA --source-bundle S3Bucket=${{ secrets.S3_BUCKET_NAME }},S3Key=build.zip
+        aws elasticbeanstalk update-environment --environment-name ${{ secrets.EB_ENV_NAME }} --version-label $GITHUB_SHA

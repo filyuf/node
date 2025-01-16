@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRUD App</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css">
+</head>
+<body>
+  <div class="container mt-5">
+    <h1 class="text-center">CRUD</h1>
+    <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#itemModal">Add Item</button>
+    <table id="itemsTable" class="table table-striped table-bordered">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Image</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be populated here by JavaScript -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal fade" id="itemModal" tabindex="-1" role="dialog" aria-labelledby="itemModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="itemModalLabel">Add Item</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="itemForm">
+            <div class="form-group">
+              <label for="name">Name</label>
+              <input type="text" class="form-control" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+              <label for="description">Description</label>
+              <textarea class="form-control" id="description" name="description" required></textarea>
+            </div>
+            <div class="form-group">
+              <label for="image">Image</label>
+              <input type="file" class="form-control" id="image" name="image" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script>
+    $(document).ready(function() {
+      const apiUrl = '/items';
+
+      // Initialize DataTable
+      const table = $('#itemsTable').DataTable({
+        ajax: {
+          url: apiUrl,
+          dataSrc: ''
+        },
+        columns: [
+          { data: 'id' },
+          { data: 'name' },
+          { data: 'description' },
+          {
+            data: 'imageUrl',
+            render: function(data) {
+              return `<img src="${data}" alt="Image" width="50">`;
+            }
+          },
+          {
+            data: null,
+            render: function(data, type, row) {
+              return `
+                <button class="btn btn-warning btn-sm edit-btn" data-id="${row.id}">Edit</button>
+                <button class="btn btn-danger btn-sm delete-btn" data-id="${row.id}">Delete</button>
+              `;
+            }
+          }
+        ]
+      });
+
+      // Handle form submission
+      $('#itemForm').on('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+
+        $.ajax({
+          url: apiUrl,
+          type: 'POST',
+          data: formData,
+          processData: false,
+          contentType: false,
+          success: function() {
+            $('#itemModal').modal('hide');
+            table.ajax.reload();
+          }
+        });
+      });
+
+      // Handle delete button click
+      $('#itemsTable').on('click', '.delete-btn', function() {
+        const id = $(this).data('id');
+
+        $.ajax({
+          url: `${apiUrl}/${id}`,
+          type: 'DELETE',
+          success: function() {
+            table.ajax.reload();
+          }
+        });
+      });
+
+      // Handle edit button click
+      $('#itemsTable').on('click', '.edit-btn', function() {
+        const id = $(this).data('id');
+
+        $.get(`${apiUrl}/${id}`, function(data) {
+          $('#name').val(data.name);
+          $('#description').val(data.description);
+          $('#itemModal').modal('show');
+        });
+
+        $('#itemForm').off('submit').on('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(this);
+
+          $.ajax({
+            url: `${apiUrl}/${id}`,
+            type: 'PUT',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function() {
+              $('#itemModal').modal('hide');
+              table.ajax.reload();
+            }
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html>
