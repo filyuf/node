@@ -26,7 +26,7 @@ jobs:
 
     - name: Zip build artifacts
       run: |
-        zip -r build.zip . -x "node_modules/*" "uploads/*" "*.log" ".DS_Store" ".env"
+        zip -r build.zip dist/ -x "*.log" "*.tmp" "node_modules/*" "coverage/*" "tests/*" "docs/*" ".env" ".DS_Store"
 
     - name: Check build.zip size
       run: |
